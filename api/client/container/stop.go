@@ -41,11 +41,13 @@ func NewStopCommand(dockerCli *client.DockerCli) *cobra.Command {
 
 func runStop(dockerCli *client.DockerCli, opts *stopOptions) error {
 	ctx := context.Background()
+	timeout := time.Duration(opts.time) * time.Second
 
 	var waitAll sync.WaitGroup
 	var printLock sync.Mutex
-	var errs []string
+	var errLock sync.Mutex
 
+	var errs []string
 	var maxParallel int32 = 1000
 	//A buffered channel can be used like a semaphore, for instance to limit throughput. https://golang.org/doc/effective_go.html#channels
 	var sem = make(chan int, maxParallel)
@@ -57,15 +59,14 @@ func runStop(dockerCli *client.DockerCli, opts *stopOptions) error {
 		go func(toStop string) {
 			defer waitAll.Done()
 
-			//timeout should be local to ensure each stop task gets equal
-			//duration to stop the container
-			timeout := time.Duration(opts.time) * time.Second
-			if err := dockerCli.Client().ContainerStop(ctx, container, &timeout); err != nil {
+			if err := dockerCli.Client().ContainerStop(ctx, toStop, &timeout); err != nil {
+				errLock.Lock()
 				errs = append(errs, err.Error())
+				errLock.Unlock()
 			} else {
 				printLock.Lock()
-				defer printLock.Unlock()
-				fmt.Fprintf(dockerCli.Out(), "%s\n", container)
+				fmt.Fprintf(dockerCli.Out(), "%s\n", toStop)
+				printLock.Unlock()
 			}
 
 			<-sem // Done, enable next
