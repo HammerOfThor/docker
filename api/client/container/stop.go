@@ -3,6 +3,8 @@ package container
 import (
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/context"
@@ -40,16 +42,37 @@ func NewStopCommand(dockerCli *client.DockerCli) *cobra.Command {
 
 func runStop(dockerCli *client.DockerCli, opts *stopOptions) error {
 	ctx := context.Background()
+	timeout := time.Duration(opts.time) * time.Second
 
+	var waitAll sync.WaitGroup
+	var printLock sync.Mutex
+	var errLock sync.Mutex
 	var errs []string
+
+	var maxParallel int32 = 1000
+	var count int32
 	for _, container := range opts.containers {
-		timeout := time.Duration(opts.time) * time.Second
-		if err := dockerCli.Client().ContainerStop(ctx, container, &timeout); err != nil {
-			errs = append(errs, err.Error())
-		} else {
-			fmt.Fprintf(dockerCli.Out(), "%s\n", container)
+		// wait if maxParallel number is reached
+		atomic.AddInt32(&count, 1)
+		for atomic.LoadInt32(&count) > maxParallel {
+			time.Sleep(100 * time.Millisecond)
 		}
+		waitAll.Add(1)
+		go func(toStop string) {
+			defer waitAll.Done()
+			defer atomic.AddInt32(&count, -1)
+			if err := dockerCli.Client().ContainerStop(ctx, toStop, &timeout); err != nil {
+				errLock.Lock()
+				errs = append(errs, err.Error())
+				errLock.Unlock()
+			} else {
+				printLock.Lock()
+				fmt.Fprintf(dockerCli.Out(), "%s\n", toStop)
+				printLock.Unlock()
+			}
+		}(container)
 	}
+	waitAll.Wait()
 	if len(errs) > 0 {
 		return fmt.Errorf("%s", strings.Join(errs, "\n"))
 	}
