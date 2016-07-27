@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/context"
@@ -50,17 +49,14 @@ func runStop(dockerCli *client.DockerCli, opts *stopOptions) error {
 	var errs []string
 
 	var maxParallel int32 = 1000
-	var count int32
+	//A buffered channel can be used like a semaphore, for instance to limit throughput. https://golang.org/doc/effective_go.html#channels
+	var sem = make(chan int, maxParallel)
 	for _, container := range opts.containers {
-		// wait if maxParallel number is reached
-		atomic.AddInt32(&count, 1)
-		for atomic.LoadInt32(&count) > maxParallel {
-			time.Sleep(100 * time.Millisecond)
-		}
+		sem <- 1 // Wait for active queue sem to drain.
 		waitAll.Add(1)
 		go func(toStop string) {
 			defer waitAll.Done()
-			defer atomic.AddInt32(&count, -1)
+
 			if err := dockerCli.Client().ContainerStop(ctx, toStop, &timeout); err != nil {
 				errLock.Lock()
 				errs = append(errs, err.Error())
@@ -70,6 +66,7 @@ func runStop(dockerCli *client.DockerCli, opts *stopOptions) error {
 				fmt.Fprintf(dockerCli.Out(), "%s\n", toStop)
 				printLock.Unlock()
 			}
+			<-sem //Done, enable next
 		}(container)
 	}
 	waitAll.Wait()
