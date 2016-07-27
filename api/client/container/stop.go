@@ -65,8 +65,8 @@ func runStop(dockerCli *client.DockerCli, opts *stopOptions) error {
 				errLock.Unlock()
 			} else {
 				printLock.Lock()
-				defer printLock.Unlock()
 				fmt.Fprintf(dockerCli.Out(), "%s\n", container)
+				printLock.Unlock()
 			}
 
 			<-sem // Done, enable next
