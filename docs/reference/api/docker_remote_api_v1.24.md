@@ -3259,6 +3259,7 @@ Content-Type: application/json
 **Status codes**:
 
 - **200** - no error
+- **403** - operation not supported for swarm scoped networks
 - **404** - network or container is not found
 - **500** - Internal Server Error
 
@@ -3291,6 +3292,7 @@ Content-Type: application/json
 **Status codes**:
 
 - **200** - no error
+- **403** - operation not supported for swarm scoped networks
 - **404** - network or container not found
 - **500** - Internal Server Error
 
@@ -3591,6 +3593,7 @@ Initialize a new Swarm
 
     {
       "ListenAddr": "0.0.0.0:4500",
+      "AdvertiseAddr": "192.168.1.1:4500",
       "ForceNewCluster": false,
       "Spec": {
         "Orchestration": {},
@@ -3614,8 +3617,16 @@ Initialize a new Swarm
 
 JSON Parameters:
 
-- **ListenAddr** – Listen address used for inter-manager communication, as well as determining.
-  the networking interface used for the VXLAN Tunnel Endpoint (VTEP).
+- **ListenAddr** – Listen address used for inter-manager communication, as well as determining
+  the networking interface used for the VXLAN Tunnel Endpoint (VTEP). This can either be an
+  address/port combination in the form `192.168.1.1:4567`, or an interface followed by a port
+  number, like `eth0:4567`. If the port number is omitted, the default swarm listening port is
+  used.
+- **AdvertiseAddr** – Externally reachable address advertised to other nodes. This can either be
+  an address/port combination in the form `192.168.1.1:4567`, or an interface followed by a port
+  number, like `eth0:4567`. If the port number is omitted, the port number from the listen
+  address is used. If `AdvertiseAddr` is not specified, it will be automatically detected when
+  possible.
 - **ForceNewCluster** – Force creating a new Swarm even if already part of one.
 - **Spec** – Configuration settings of the new Swarm.
     - **Orchestration** – Configuration settings for the orchestration aspects of the Swarm.
@@ -3656,6 +3667,7 @@ Join an existing new Swarm
 
     {
       "ListenAddr": "0.0.0.0:4500",
+      "AdvertiseAddr: "192.168.1.1:4500",
       "RemoteAddrs": ["node1:4500"],
       "JoinToken": "SWMTKN-1-3pu6hszjas19xyp7ghgosyx9k8atbfcr8p2is99znpy26u2lkl-7p73s1dx5in4tatdymyhg9hu2"
     }
@@ -3676,6 +3688,11 @@ JSON Parameters:
 
 - **ListenAddr** – Listen address used for inter-manager communication if the node gets promoted to
   manager, as well as determining the networking interface used for the VXLAN Tunnel Endpoint (VTEP).
+- **AdvertiseAddr** – Externally reachable address advertised to other nodes. This can either be
+  an address/port combination in the form `192.168.1.1:4567`, or an interface followed by a port
+  number, like `eth0:4567`. If the port number is omitted, the port number from the listen
+  address is used. If `AdvertiseAddr` is not specified, it will be automatically detected when
+  possible.
 - **RemoteAddr** – Address of any manager node already participating in the Swarm to join.
 - **JoinToken** – Secret token for joining this Swarm.
 
@@ -3949,7 +3966,8 @@ Create a service
       },
       "UpdateConfig": {
         "Delay": 30000000000.0,
-        "Parallelism": 2
+        "Parallelism": 2,
+        "FailureAction": "pause"
       },
       "EndpointSpec": {
         "Ports": [
@@ -4039,6 +4057,8 @@ JSON Parameters:
     - **Parallelism** – Maximum number of tasks to be updated in one iteration (0 means unlimited
       parallelism).
     - **Delay** – Amount of time between updates.
+    - **FailureAction** - Action to take if an updated task fails to run, or stops running during the
+      update. Values are `continue` and `pause`.
 - **Networks** – Array of network names or IDs to attach the service to.
 - **Endpoint** – Properties that can be configured to access and load balance a service.
     - **Spec** –

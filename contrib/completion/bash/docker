@@ -1726,6 +1726,7 @@ _docker_service_update() {
 		--restart-window
 		--stop-grace-period
 		--update-delay
+		--update-failure-action
 		--update-parallelism
 		--user -u
 		--workdir -w
@@ -1740,6 +1741,7 @@ _docker_service_update() {
 
 	if [ "$subcommand" = "create" ] ; then
 		options_with_args="$options_with_args
+			--container-label
 			--mode
 		"
 
@@ -1753,6 +1755,8 @@ _docker_service_update() {
 	if [ "$subcommand" = "update" ] ; then
 		options_with_args="$options_with_args
 			--arg
+			--container-label-add
+			--container-label-rm
 			--image
 		"
 
@@ -1813,7 +1817,6 @@ _docker_service_update() {
 _docker_swarm() {
 	local subcommands="
 		init
-		inspect
 		join
 		join-token
 		leave
@@ -1839,25 +1842,17 @@ _docker_swarm_init() {
 			fi
 			return
 			;;
-	esac
-
-	case "$cur" in
-		-*)
-			COMPREPLY=( $( compgen -W "--force-new-cluster --help --listen-addr" -- "$cur" ) )
-			;;
-	esac
-}
-
-_docker_swarm_inspect() {
-	case "$prev" in
-		--format|-f)
+		--advertise-addr)
+			if [[ $cur == *: ]] ; then
+				COMPREPLY=( $( compgen -W "2377" -- "${cur##*:}" ) )
+			fi
 			return
 			;;
 	esac
 
 	case "$cur" in
 		-*)
-			COMPREPLY=( $( compgen -W "--format -f --help" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "--advertise-addr --force-new-cluster --help --listen-addr" -- "$cur" ) )
 			;;
 	esac
 }
@@ -1873,11 +1868,17 @@ _docker_swarm_join() {
 			fi
 			return
 			;;
+		--advertise-addr)
+			if [[ $cur == *: ]] ; then
+				COMPREPLY=( $( compgen -W "2377" -- "${cur##*:}" ) )
+			fi
+			return
+			;;
 	esac
 
 	case "$cur" in
 		-*)
-			COMPREPLY=( $( compgen -W "--help --listen-addr --token" -- "$cur" ) )
+			COMPREPLY=( $( compgen -W "--adveritse-addr --help --listen-addr --token" -- "$cur" ) )
 			;;
 		*:)
 			COMPREPLY=( $( compgen -W "2377" -- "${cur##*:}" ) )

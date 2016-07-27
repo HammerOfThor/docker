@@ -120,7 +120,6 @@ func (d *SwarmDaemon) getService(c *check.C, id string) *swarm.Service {
 	c.Assert(status, checker.Equals, http.StatusOK, check.Commentf("output: %q", string(out)))
 	c.Assert(err, checker.IsNil)
 	c.Assert(json.Unmarshal(out, &service), checker.IsNil)
-	c.Assert(service.ID, checker.Equals, id)
 	return &service
 }
 
@@ -247,18 +246,22 @@ func (d *SwarmDaemon) listServices(c *check.C) []swarm.Service {
 	return services
 }
 
-func (d *SwarmDaemon) updateSwarm(c *check.C, f ...specConstructor) {
+func (d *SwarmDaemon) getSwarm(c *check.C) swarm.Swarm {
 	var sw swarm.Swarm
 	status, out, err := d.SockRequest("GET", "/swarm", nil)
 	c.Assert(err, checker.IsNil)
 	c.Assert(status, checker.Equals, http.StatusOK, check.Commentf("output: %q", string(out)))
 	c.Assert(json.Unmarshal(out, &sw), checker.IsNil)
+	return sw
+}
 
+func (d *SwarmDaemon) updateSwarm(c *check.C, f ...specConstructor) {
+	sw := d.getSwarm(c)
 	for _, fn := range f {
 		fn(&sw.Spec)
 	}
 	url := fmt.Sprintf("/swarm/update?version=%d", sw.Version.Index)
-	status, out, err = d.SockRequest("POST", url, sw.Spec)
+	status, out, err := d.SockRequest("POST", url, sw.Spec)
 	c.Assert(err, checker.IsNil)
 	c.Assert(status, checker.Equals, http.StatusOK, check.Commentf("output: %q", string(out)))
 }
