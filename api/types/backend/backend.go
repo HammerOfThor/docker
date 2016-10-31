@@ -44,7 +44,7 @@ type ContainerStatsConfig struct {
 // behavior of a backend.ContainerStatsAll() call.
 type ContainerStatsAllConfig struct {
 	ContainerStatsConfig
-	All bool
+	Filters filters.Args
 }
 
 // ExecInspect holds information about a running process started

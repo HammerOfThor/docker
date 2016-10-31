@@ -11,6 +11,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/backend"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/versions"
 	"github.com/docker/docker/api/types/versions/v1p20"
 	"github.com/docker/docker/container"
@@ -198,12 +199,14 @@ func (daemon *Daemon) ContainerStatsAll(ctx context.Context, config *backend.Con
 				}
 			}
 
-			if config.All {
-				containers := daemon.List()
-				for _, cnt := range containers {
-					if _, ok := statsJSON[cnt.ID]; !ok {
-						statsJSON[cnt.ID] = &types.StatsJSON{}
-					}
+			// filter container
+			daemon.reduceStatsContainers(config.Filters)
+
+			// get also stopped containers
+			containers := daemon.List()
+			for _, cnt := range containers {
+				if _, ok := statsJSON[cnt.ID]; !ok {
+					statsJSON[cnt.ID] = &types.StatsJSON{}
 				}
 			}
 			if err := enc.Encode(statsJSON); err != nil {
@@ -246,4 +249,14 @@ func (daemon *Daemon) GetContainerStatsAllRunning() map[string]*types.StatsJSON 
 		allStats[cnt.ID] = stats
 	}
 	return allStats
+}
+
+func (daemon *Daemon) reduceStatsContainers(filter filters.Args) {
+	config := &types.ContainerListOptions{
+		All:    true,
+		Size:   true,
+		Filter: filter,
+	}
+
+	daemon.reduceContainers(config, daemon.transformContainer)
 }
