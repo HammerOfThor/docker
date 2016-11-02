@@ -65,13 +65,29 @@ func (s *containerRouter) getContainersStats(ctx context.Context, w http.Respons
 		w.Header().Set("Content-Type", "application/json")
 	}
 
-	config := &backend.ContainerStatsConfig{
-		Stream:    stream,
-		OutStream: w,
-		Version:   string(httputils.VersionFromContext(ctx)),
+	filter := filters.NewArgs()
+	version := httputils.VersionFromContext(ctx)
+	json, err := s.backend.ContainerInspect(vars["name"], false, version)
+	if err != nil {
+		return err
 	}
 
-	return s.backend.ContainerStats(ctx, vars["name"], config)
+	if ctrJSON, ok := json.(*types.ContainerJSON); ok {
+		filter.Add("id", ctrJSON.ID)
+	} else {
+		return fmt.Errorf("can't find container id")
+	}
+
+	config := &backend.ContainerStatsAllConfig{
+		ContainerStatsConfig: backend.ContainerStatsConfig{
+			Stream:    stream,
+			OutStream: w,
+			Version:   string(httputils.VersionFromContext(ctx)),
+		},
+		Filters: filter,
+	}
+
+	return s.backend.ContainerStatsAll(ctx, config)
 }
 
 func (s *containerRouter) getContainersStatsAll(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
