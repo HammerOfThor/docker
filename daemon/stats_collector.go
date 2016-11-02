@@ -14,8 +14,6 @@ import (
 )
 
 type statsSupervisor interface {
-	// GetContainerStats collects all the stats related to a container
-	GetContainerStats(container *container.Container) (*types.StatsJSON, error)
 	// GetContainerStatsAllRunning collects stats of all the running containers
 	GetContainerStatsAllRunning() map[string]*types.StatsJSON
 }
@@ -32,7 +30,6 @@ func (daemon *Daemon) newStatsCollector(interval time.Duration) *statsCollector 
 		bufReader:  bufio.NewReaderSize(nil, 128),
 	}
 	platformNewStatsCollector(s)
-	go s.runCollectorForSome()
 	go s.runCollectorForAllRunning()
 	return s
 }
@@ -49,44 +46,6 @@ type statsCollector struct {
 	// The following fields are not set on Windows currently.
 	clockTicksPerSecond uint64
 	machineMemory       uint64
-}
-
-// collect registers the container with the collector and adds it to
-// the event loop for collection on the specified interval returning
-// a channel for the subscriber to receive on.
-func (s *statsCollector) collect(c *container.Container) chan interface{} {
-	s.m.Lock()
-	defer s.m.Unlock()
-	publisher, exists := s.publishers[c]
-	if !exists {
-		publisher = pubsub.NewPublisher(100*time.Millisecond, 1024)
-		s.publishers[c] = publisher
-	}
-	return publisher.Subscribe()
-}
-
-// stopCollection closes the channels for all subscribers and removes
-// the container from metrics collection.
-func (s *statsCollector) stopCollection(c *container.Container) {
-	s.m.Lock()
-	if publisher, exists := s.publishers[c]; exists {
-		publisher.Close()
-		delete(s.publishers, c)
-	}
-	s.m.Unlock()
-}
-
-// unsubscribe removes a specific subscriber from receiving updates for a container's stats.
-func (s *statsCollector) unsubscribe(c *container.Container, ch chan interface{}) {
-	s.m.Lock()
-	publisher := s.publishers[c]
-	if publisher != nil {
-		publisher.Evict(ch)
-		if publisher.Len() == 0 {
-			delete(s.publishers, c)
-		}
-	}
-	s.m.Unlock()
 }
 
 // collectAll start the event loop for collecting on all containers
@@ -121,52 +80,6 @@ func (s *statsCollector) unsubscribeAll(ch chan interface{}) {
 		}
 	}
 	s.m.Unlock()
-}
-
-func (s *statsCollector) runCollectorForSome() {
-	type publishersPair struct {
-		container *container.Container
-		publisher *pubsub.Publisher
-	}
-	// we cannot determine the capacity here.
-	// it will grow enough in first iteration
-	var pairs []publishersPair
-
-	for range time.Tick(s.interval) {
-		// it does not make sense in the first iteration,
-		// but saves allocations in further iterations
-		pairs = pairs[:0]
-
-		s.m.Lock()
-		for container, publisher := range s.publishers {
-			// copy pointers here to release the lock ASAP
-			pairs = append(pairs, publishersPair{container, publisher})
-		}
-		s.m.Unlock()
-		if len(pairs) == 0 {
-			continue
-		}
-
-		systemUsage, err := s.getSystemCPUUsage()
-		if err != nil {
-			logrus.Errorf("collecting system cpu usage: %v", err)
-			continue
-		}
-
-		for _, pair := range pairs {
-			stats, err := s.supervisor.GetContainerStats(pair.container)
-			if err != nil {
-				if _, ok := err.(errNotRunning); !ok {
-					logrus.Errorf("collecting stats for %s: %v", pair.container.ID, err)
-				}
-				continue
-			}
-			// FIXME: move to containerd on Linux (not Windows)
-			stats.CPUStats.SystemUsage = systemUsage
-
-			pair.publisher.Publish(*stats)
-		}
-	}
 }
 
 func (s *statsCollector) runCollectorForAllRunning() {

@@ -87,10 +87,6 @@ func (daemon *Daemon) cleanupContainer(container *container.Container, forceRemo
 		}
 	}
 
-	// stop collection of stats for the container regardless
-	// if stats are currently getting collected.
-	daemon.statsCollector.stopCollection(container)
-
 	if err = daemon.containerStop(container, 3); err != nil {
 		return err
 	}
