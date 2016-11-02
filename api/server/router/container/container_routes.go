@@ -65,13 +65,21 @@ func (s *containerRouter) getContainersStats(ctx context.Context, w http.Respons
 		w.Header().Set("Content-Type", "application/json")
 	}
 
-	config := &backend.ContainerStatsConfig{
-		Stream:    stream,
-		OutStream: w,
-		Version:   string(httputils.VersionFromContext(ctx)),
+	prefixOrName := vars["name"]
+	filter := filters.NewArgs()
+	filter.Add("id", prefixOrName)
+	filter.Add("name", prefixOrName)
+
+	config := &backend.ContainerStatsAllConfig{
+		ContainerStatsConfig: backend.ContainerStatsConfig{
+			Stream:    stream,
+			OutStream: w,
+			Version:   string(httputils.VersionFromContext(ctx)),
+		},
+		Filters: filter,
 	}
 
-	return s.backend.ContainerStats(ctx, vars["name"], config)
+	return s.backend.ContainerStatsAll(ctx, config)
 }
 
 func (s *containerRouter) getContainersStatsAll(ctx context.Context, w http.ResponseWriter, r *http.Request, vars map[string]string) error {
