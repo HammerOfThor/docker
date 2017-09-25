@@ -2,7 +2,7 @@
 
 ### Docker maintainers and contributors, see [Transitioning to Moby](#transitioning-to-moby) for more details
 
-The Moby Project
+The Docker Project
 ================
 
 ![Moby Project logo](docs/static_files/moby-project-logo.png "The Moby Project")
